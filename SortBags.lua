@@ -9,7 +9,7 @@ BANK_BAG_CONTAINERS = {-1, 5, 6, 7, 8, 9, 10, 11}
 function _G.SortBags()
 	CONTAINERS = {unpack(BAG_CONTAINERS)}
 	for i = #CONTAINERS, 1, -1 do
-		if GetBagSlotFlag(i - 1, LE_BAG_FILTER_FLAG_IGNORE_CLEANUP) then
+		if C_Container.GetBagSlotFlag(i - 1, LE_BAG_FILTER_FLAG_IGNORE_CLEANUP) then
 			tremove(CONTAINERS, i)
 		end
 	end
@@ -19,7 +19,7 @@ end
 function _G.SortBankBags()
 	CONTAINERS = {unpack(BANK_BAG_CONTAINERS)}
 	for i = #CONTAINERS, 1, -1 do
-		if GetBankBagSlotFlag(i - 1, LE_BAG_FILTER_FLAG_IGNORE_CLEANUP) then
+		if C_Container.GetBankBagSlotFlag(i - 1, LE_BAG_FILTER_FLAG_IGNORE_CLEANUP) then
 			tremove(CONTAINERS, i)
 		end
 	end
@@ -127,12 +127,12 @@ do
 	local function updateHandler()
 		if GetTime() - lastUpdate > 1 then
 			for _, container in pairs(BAG_CONTAINERS) do
-				for position = 1, GetContainerNumSlots(container) do
+				for position = 1, C_Container.GetContainerNumSlots(container) do
 					SetScanTooltip(container, position)
 				end
 			end
 			for _, container in pairs(BANK_BAG_CONTAINERS) do
-				for position = 1, GetContainerNumSlots(container) do
+				for position = 1, C_Container.GetContainerNumSlots(container) do
 					SetScanTooltip(container, position)
 				end
 			end
@@ -205,14 +205,13 @@ function LT(a, b)
 end
 
 function Move(src, dst)
-	local texture, _, srcLocked = GetContainerItemInfo(src.container, src.position)
-	local _, _, dstLocked = GetContainerItemInfo(dst.container, dst.position)
+	local srcInfo = C_Container.GetContainerItemInfo(src.container, src.position)
+	local dstInfo = C_Container.GetContainerItemInfo(dst.container, dst.position)
 
-	if texture and not srcLocked and not dstLocked then
+	if srcInfo and srcInfo.iconFileID and not srcInfo.isLocked and not (dstInfo and dstInfo.isLocked) then
 		ClearCursor()
-		PickupContainerItem(src.container, src.position)
-		PickupContainerItem(dst.container, dst.position)
-
+		C_Container.PickupContainerItem(src.container, src.position)
+		C_Container.PickupContainerItem(dst.container, dst.position)
 		if src.item == dst.item then
 			local count = min(src.count, itemStacks[dst.item] - dst.count)
 			src.count = src.count - count
@@ -224,7 +223,6 @@ function Move(src, dst)
 			src.item, dst.item = dst.item, src.item
 			src.count, dst.count = dst.count, src.count
 		end
-
 		coroutine.yield()
 		return true
 	end
@@ -298,7 +296,6 @@ function Sort()
 		for _, dst in ipairs(model) do
 			if dst.targetItem and (dst.item ~= dst.targetItem or dst.count < dst.targetCount) then
 				complete = false
-
 				local sources, rank = {}, {}
 
 				for _, src in ipairs(model) do
@@ -311,7 +308,6 @@ function Sort()
 						tinsert(sources, src)
 					end
 				end
-
 				sort(sources, function(a, b) return rank[a] < rank[b] end)
 
 				for _, src in ipairs(sources) do
@@ -368,20 +364,20 @@ do
 
 	function Initialize()
 		model, counts, itemStacks, itemClasses, itemSortKeys = {}, {}, {}, {}, {}
-
 		for _, container in ipairs(CONTAINERS) do
 			local class = ContainerClass(container)
-			for position = 1, GetContainerNumSlots(container) do
+			for position = 1, C_Container.GetContainerNumSlots(container) do
 				local slot = {container=container, position=position, class=class}
 				local item = Item(container, position)
 				if item then
-					local _, count, locked = GetContainerItemInfo(container, position)
-					if locked then
+					local containerInfo = C_Container.GetContainerItemInfo(container, position)
+					if containerInfo.isLocked then
 						return false
 					end
+					
 					slot.item = item
-					slot.count = count
-					counts[item] = (counts[item] or 0) + count
+					slot.count = containerInfo.stackCount
+					counts[item] = (counts[item] or 0) + containerInfo.stackCount
 				end
 				insert(model, slot)
 			end
@@ -431,7 +427,7 @@ end
 
 function ContainerClass(container)
 	if container ~= 0 and container ~= BANK_CONTAINER then
-		local name = GetBagName(container)
+		local name = C_Container.GetBagName(container)
 		if name then
 			for class, info in pairs(CLASSES) do
 				for _, itemID in pairs(info.containers) do
@@ -445,7 +441,7 @@ function ContainerClass(container)
 end
 
 function Item(container, position)
-	local link = GetContainerItemLink(container, position)
+	local link = C_Container.GetContainerItemLink(container, position)
 	if link then
 		local _, _, itemID, enchantID, suffixID, uniqueID = strfind(link, 'item:(%d+):(%d*):%d*:%d*:%d*:%d*:(%-?%d*):(%-?%d*)')
 		itemID = tonumber(itemID)
